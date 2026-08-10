@@ -89,6 +89,13 @@ export interface StartMcpOptions {
   onBackendError?: (e: unknown) => string | null;
   /** Enable OAuth 2.1 JWT validation alongside static bearer. */
   oauth?: OAuthOptions;
+  /**
+   * Returned in the MCP `initialize` response as a hint to the connecting
+   * model about how to use this server — e.g. "check X before responding."
+   * Not every client surfaces this to the model, but it's the spec-correct
+   * place to put it (vs. hoping the model decides to call a tool first).
+   */
+  instructions?: string;
 }
 
 function json(res: ServerResponse, status: number, body: any, headers: Record<string, string> = {}) {
@@ -97,7 +104,7 @@ function json(res: ServerResponse, status: number, body: any, headers: Record<st
 }
 
 export async function startMcp(opts: StartMcpOptions): Promise<void> {
-  const { name, version = "0.1.0", port, bearerToken, tools, onBackendError, oauth } = opts;
+  const { name, version = "0.1.0", port, bearerToken, tools, onBackendError, oauth, instructions } = opts;
 
   if (!bearerToken) throw new Error(`startMcp: bearerToken required for '${name}'`);
 
@@ -172,7 +179,10 @@ export async function startMcp(opts: StartMcpOptions): Promise<void> {
   }
 
   const buildServer = (): Server => {
-    const server = new Server({ name, version }, { capabilities: { tools: {} } });
+    const server = new Server(
+      { name, version },
+      { capabilities: { tools: {} }, ...(instructions ? { instructions } : {}) },
+    );
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: tools.map((t) => ({

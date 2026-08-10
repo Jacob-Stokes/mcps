@@ -31,6 +31,11 @@ const PORT = parseInt(process.env.PORT || "7000", 10);
 const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN;
 if (!MCP_BEARER_TOKEN) { console.error("FATAL: MCP_BEARER_TOKEN env var required"); process.exit(1); }
 
+// Optional hint surfaced to the connecting model in the MCP `initialize`
+// response — e.g. telling it to check a docs tool before responding.
+// Deployment-specific, so it's opt-in via env rather than hardcoded here.
+const MCP_INSTRUCTIONS = process.env.MCP_INSTRUCTIONS;
+
 // OAuth config — required for public exposure.
 const oauth = process.env.MCP_OAUTH_ISSUER
   ? {
@@ -210,7 +215,10 @@ function fail(res: ServerResponse, err: string): false {
 const streamableTransports = new Map<string, StreamableHTTPServerTransport>();
 
 function buildServer(): Server {
-  const server = new Server({ name: "gateway-mcp", version: "0.1.0" }, { capabilities: { tools: {} } });
+  const server = new Server(
+    { name: "gateway-mcp", version: "0.1.0" },
+    { capabilities: { tools: {} }, ...(MCP_INSTRUCTIONS ? { instructions: MCP_INSTRUCTIONS } : {}) },
+  );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     await retryErroredBackends();
