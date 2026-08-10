@@ -15,16 +15,48 @@ jobs:
       services: ${{ steps.find.outputs.services }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - id: find
         run: |
-          # Any top-level dir with a Dockerfile becomes a service.
+          # Any top-level dir with a Dockerfile is a candidate service.
           # Top-level source-only libraries (mcp-common) are intentionally
           # skipped — they don't ship a Dockerfile.
-          services=$(find . -maxdepth 2 -name Dockerfile -not -path './.*' \
-            | sed -E 's|^\./||; s|/Dockerfile$||' \
-            | jq -R . | jq -sc .)
+          all_services=$(find . -maxdepth 2 -name Dockerfile -not -path './.*' \
+            | sed -E 's|^\./||; s|/Dockerfile$||')
+
+          # Only rebuild what actually changed, so touching one MCP doesn't
+          # rebuild all ~17 of them. Exceptions that rebuild everything:
+          # manual dispatch, no previous commit to diff against (first push
+          # to a new branch), a change to mcp-common/ (shared dep baked into
+          # every image), or a change to this workflow file itself.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
+             [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            changed_dirs="$all_services"
+          else
+            changed_files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+            echo "Changed files:"; echo "$changed_files"
+
+            rebuild_all=no
+            echo "$changed_files" | grep -qE '^mcp-common/' && rebuild_all=yes
+            echo "$changed_files" | grep -qE '^\.github/workflows/' && rebuild_all=yes
+
+            if [ "$rebuild_all" = "yes" ]; then
+              changed_dirs="$all_services"
+            else
+              changed_dirs=""
+              for svc in $all_services; do
+                if echo "$changed_files" | grep -q "^${svc}/"; then
+                  changed_dirs="$changed_dirs $svc"
+                fi
+              done
+            fi
+          fi
+
+          services=$(echo $changed_dirs | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -sc . )
+          services=${services:-[]}
           echo "services=$services" >> "$GITHUB_OUTPUT"
-          echo "Discovered: $services"
+          echo "Building: $services"
 
   build:
     needs: discover
