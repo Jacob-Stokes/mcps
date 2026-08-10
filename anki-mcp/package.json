@@ -1,0 +1,10 @@
+{
+  "name": "anki-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": { "build": "tsc", "start": "node dist/server.js" },
+  "dependencies": { "mcp-common": "file:../mcp-common", "zod": "^3.23.0" },
+  "devDependencies": { "@types/node": "^20", "typescript": "^5" }
+}

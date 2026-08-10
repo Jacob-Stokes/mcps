@@ -1,0 +1,76 @@
+name: Build images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.find.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        run: |
+          # Any top-level dir with a Dockerfile becomes a service.
+          # Top-level source-only libraries (mcp-common) are intentionally
+          # skipped — they don't ship a Dockerfile.
+          services=$(find . -maxdepth 2 -name Dockerfile -not -path './.*' \
+            | sed -E 's|^\./||; s|/Dockerfile$||' \
+            | jq -R . | jq -sc .)
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "Discovered: $services"
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.discover.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          # Namespaced under `mcps/` so this repo's images don't collide with
+          # the same-named packages still owned by the legacy `source` repo.
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/mcps/${{ matrix.service }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - uses: docker/build-push-action@v6
+        with:
+          # Build context is the monorepo root so Dockerfiles can COPY from
+          # sibling directories (e.g. MCP sidecars pulling in mcp-common).
+          # Each service's Dockerfile therefore prefixes its COPY paths with
+          # the service name, e.g. `COPY thesys-mcp/package.json ./`.
+          context: .
+          file: ./${{ matrix.service }}/Dockerfile
+          push: true
+          # amd64 for resolution/threesisters/threebrothers, arm64 for
+          # freelove (Ampere A1) — freelove runs these images natively now.
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
