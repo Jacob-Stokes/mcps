@@ -1,7 +1,11 @@
-# Custom playwright-mcp image: upstream mcp + headed chromium rendered onto
-# an Xvfb virtual display, served over VNC via x11vnc, wrapped in noVNC's
-# web UI. Supervised by supervisord so all four processes (xvfb, x11vnc,
-# novnc-websockify, playwright-mcp) run together.
+# Custom playwright-mcp image: headed chromium rendered onto an Xvfb virtual
+# display, served over VNC via x11vnc, wrapped in noVNC's web UI. Chrome runs
+# as its own standalone, always-on process (not spawned/owned by
+# playwright-mcp) so the browser session — tabs, logins, everything —
+# persists across MCP connections instead of opening/closing per call.
+# playwright-mcp just attaches to it via CDP. Supervised by supervisord so
+# all six processes (xvfb, x11vnc, novnc-websockify, fluxbox, chrome,
+# playwright-mcp) run together and restart if any dies.
 #
 # Exposed ports:
 #   7004  — MCP streamable HTTP (internal-only, thesys-net)
@@ -35,11 +39,13 @@ RUN curl -sSL -o /tmp/ublock.zip \
 # the installed cli.js. Version pinned in a moment via package.json if needed.
 RUN npm install -g @playwright/mcp@latest
 
-# Playwright-mcp's --browser flag maps "chrome"/"chromium" to Google's
-# "chrome-for-testing" build, which isn't shipped in the base image (it only
-# includes the bundled chromium). Pre-install it so container start doesn't
-# do a 280MB download on first navigate.
-RUN npx -y @playwright/mcp install-browser chrome-for-testing
+# Chrome runs as its OWN standalone, always-on supervisor program (see
+# supervisord.conf) rather than being spawned/owned by playwright-mcp —
+# that's what makes the browser session persistent across MCP connections
+# instead of closing after each one. playwright-mcp just attaches to it via
+# --cdp-endpoint. Symlink to a stable path since the bundled chromium's
+# version-numbered directory (e.g. chromium-1217) shifts on image rebuilds.
+RUN ln -s "$(find /ms-playwright -maxdepth 3 -type f -name chrome -path '*chromium-*' | head -1)" /usr/local/bin/chrome-standalone
 
 # Output dir needs to be writable; default tries /app/.playwright-mcp.
 RUN mkdir -p /tmp/playwright-mcp && chmod 777 /tmp/playwright-mcp
@@ -51,21 +57,6 @@ RUN mkdir -p /data/browser && chmod 777 /data/browser
 # directory listing at /. Add a redirect so hitting the root auto-loads the
 # client and connects immediately.
 RUN printf '<!doctype html><meta http-equiv="refresh" content="0; url=vnc.html?autoconnect=true&resize=scale&path=websockify">\n' > /usr/share/novnc/index.html
-
-# Playwright-mcp config: tells chromium to load the uBO extension. Passed to
-# the MCP server via `--config /etc/playwright-mcp-config.json`.
-RUN printf '%s\n' \
-    '{' \
-    '  "browser": {' \
-    '    "browserName": "chromium",' \
-    '    "launchOptions": {' \
-    '      "args": [' \
-    '        "--disable-extensions-except=/opt/ublock-origin-files",' \
-    '        "--load-extension=/opt/ublock-origin-files"' \
-    '      ]' \
-    '    }' \
-    '  }' \
-    '}' > /etc/playwright-mcp-config.json
 
 # Supervisord config runs all processes + restarts any that die.
 COPY playwright-mcp/supervisord.conf /etc/supervisor/conf.d/playwright.conf
