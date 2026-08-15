@@ -24,16 +24,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# uBlock Origin bundled as an unpacked extension. Loaded into every browser
-# session via --load-extension so ads/trackers are blocked by default (incl.
-# when playwright drives the browser — keeps pages light and less distracting
-# to watch over VNC).
-ARG UBO_VERSION=1.70.0
-RUN curl -sSL -o /tmp/ublock.zip \
-      "https://github.com/gorhill/uBlock/releases/download/${UBO_VERSION}/uBlock0_${UBO_VERSION}.chromium.zip" \
-    && unzip -q /tmp/ublock.zip -d /opt \
-    && mv /opt/uBlock0.chromium /opt/ublock-origin-files \
-    && rm /tmp/ublock.zip
+# uBlock Origin Lite (the MV3 rewrite — full uBlock Origin is MV2-only by
+# design and Chrome no longer loads MV2 extensions at all, so the classic
+# build silently failed to register here for a while). Bundled as an
+# unpacked extension, loaded into every browser session via --load-extension
+# so ads/trackers are blocked by default — keeps pages light and less
+# distracting to watch over VNC.
+ARG UBOL_VERSION=2026.812.1211
+RUN curl -sSL -o /tmp/ubol.zip \
+      "https://github.com/uBlockOrigin/uBOL-home/releases/download/${UBOL_VERSION}/uBOLite_${UBOL_VERSION}.chromium.zip" \
+    && unzip -q /tmp/ubol.zip -d /opt/ublock-origin-files \
+    && rm /tmp/ubol.zip
+
+# "I still don't care about cookies" — community-maintained fork of the
+# popular auto-accept-cookie-banners extension (the original was acquired by
+# Avast). Also MV3. Loaded alongside uBOL above.
+ARG IDCAC_VERSION=1.1.9
+RUN curl -sSL -o /tmp/idcac.zip \
+      "https://github.com/OhMyGuus/I-Still-Dont-Care-About-Cookies/releases/download/v${IDCAC_VERSION}/ISDCAC-chrome-source.zip" \
+    && unzip -q /tmp/idcac.zip -d /opt/idcac \
+    && rm /tmp/idcac.zip
 
 # Install the MCP server globally so supervisord can just invoke `node` with
 # the installed cli.js. Version pinned in a moment via package.json if needed.
