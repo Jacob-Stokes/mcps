@@ -101,8 +101,8 @@ jobs:
           context: .
           file: ./${{ matrix.service }}/Dockerfile
           push: true
-          # amd64 for resolution/threesisters/threebrothers, arm64 for
-          # freelove (Ampere A1) — freelove runs these images natively now.
+          # Multi-arch: most hosts are x86_64, one host is ARM and runs
+          # these images natively.
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
