@@ -26,6 +26,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { Backend, type BackendTool } from "./backend-client.js";
 import { loadConfig, saveConfig, type GatewayConfig, type BackendConfig } from "./config.js";
 import { renderAdminPage } from "./admin-ui.js";
+import { buildAuthorizationServerMetadata, parseOAuthScopes } from "./oauth-metadata.js";
 
 const PORT = parseInt(process.env.PORT || "7000", 10);
 const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN;
@@ -43,7 +44,7 @@ const oauth = process.env.MCP_OAUTH_ISSUER
       canonicalUrl: process.env.MCP_OAUTH_CANONICAL_URL!,
       jwksUri: process.env.MCP_OAUTH_JWKS_URI,
       audience: process.env.MCP_OAUTH_AUDIENCE,
-      scopesSupported: (process.env.MCP_OAUTH_SCOPES || "openid email profile").split(/\s+/),
+      scopesSupported: parseOAuthScopes(process.env.MCP_OAUTH_SCOPES),
     }
   : undefined;
 
@@ -149,20 +150,12 @@ async function authServerMetadata(): Promise<Record<string, any>> {
   const r = await fetch(upstreamUrl);
   if (!r.ok) throw new Error(`upstream metadata ${r.status} from ${upstreamUrl}`);
   const upstream: Record<string, any> = await r.json();
-  const doc = {
-    ...upstream,
-    // Issuer is rewritten to the gateway so clients treat *us* as the
-    // authorization server and stop re-resolving to Authentik (whose
-    // metadata has no registration_endpoint — the original dead end).
-    // authorization_endpoint / token_endpoint still point at Authentik,
-    // so tokens are minted there and carry Authentik's `iss`. That's what
-    // authenticate() below verifies against, unchanged. The mismatch is
-    // only visible to a client that validates an id_token issuer; MCP
-    // clients use the access token, which is opaque to them.
-    issuer: oauth!.canonicalUrl,
-    registration_endpoint: `${oauth!.canonicalUrl}${registrationPath}`,
-    code_challenge_methods_supported: upstream.code_challenge_methods_supported ?? ["S256"],
-  };
+  const doc = buildAuthorizationServerMetadata(
+    upstream,
+    oauth!.canonicalUrl,
+    registrationPath,
+    Boolean(dcrClientSecret),
+  );
   asMetadataCache = { at: Date.now(), doc };
   return doc;
 }

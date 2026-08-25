@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "main": "./dist/server.js",
-  "scripts": { "build": "tsc", "start": "node dist/server.js" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "jose": "^5.0.0",
