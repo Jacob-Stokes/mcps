@@ -14,7 +14,7 @@ const COMPACT_FIELDS = [
 export const ServicesInput = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("list"),
-    host: z.string().optional().describe("Filter: only services on this host, e.g. 'resolution' or 'adventure'"),
+    host: z.string().optional().describe("Filter: only services on this host"),
     category: z.string().optional().describe("Filter: only services of this category, e.g. 'productivity', 'media', 'platform'"),
     type: z.enum(["app", "agent"]).optional().describe("Filter: only services of this kind"),
     include_internal: z.boolean().default(false).describe("Include services flagged internal (hidden from default listing)"),
@@ -39,7 +39,7 @@ export const SERVICES_TOOL = {
     "Look up services in the homelab catalog. list returns all services (with optional filters); " +
     "get fetches one by name; by_url fetches the service at a given public hostname. " +
     "The catalog record includes urls (internal + public), auth (typed recipe: x-api-key/bearer/jwt-login/greader), " +
-    "status (running/partial/stopped), host (resolution/adventure), and tags. " +
+    "status (running/partial/stopped), host, and tags. " +
     "Use this BEFORE calling any homelab service directly — catalog is the SSOT for URLs and auth shapes.",
   inputSchema: ServicesInput,
 };

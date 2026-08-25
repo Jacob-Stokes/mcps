@@ -112,7 +112,7 @@ export function renderAdminPage(
   <div class="add-backend">
     <strong>Add a new backend</strong>
     <div class="add-grid">
-      <label>name <input type="text" name="new_name" placeholder="e.g. freelove-toys"></label>
+      <label>name <input type="text" name="new_name" placeholder="e.g. my-service"></label>
       <label>url <input type="text" name="new_url" placeholder="http://host:port/mcp"></label>
       <label>transport
         <select name="new_transport">

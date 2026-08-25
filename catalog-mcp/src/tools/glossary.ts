@@ -3,7 +3,7 @@ import type { CatalogClient } from "../catalog-client.js";
 
 // The glossary is the "where does X live" routing map — given a user topic
 // like 'tasks' or 'books', which service owns it + which MCP tool to use.
-// Also includes host descriptions (resolution / adventure).
+// Also includes per-host descriptions.
 
 export const GlossaryInput = z.discriminatedUnion("action", [
   z.object({

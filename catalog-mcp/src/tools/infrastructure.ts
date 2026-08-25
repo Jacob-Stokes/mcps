@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { CatalogClient } from "../catalog-client.js";
 
-// Infra surface — hosts (resolution/adventure), cloudflared tunnel routes,
-// CF Access app policies. Useful for agent queries like "is adventure up",
-// "how many hosts do I have", "which services are gated by CF Access".
+// Infra surface — hosts, cloudflared tunnel routes, CF Access app policies.
+// Useful for agent queries like "is host X up", "how many hosts do I have",
+// "which services are gated by CF Access".
 
 export const InfrastructureInput = z.object({
   include_routes: z.boolean().default(false).describe("Include cloudflared tunnel routes (can be long — 30+ entries)"),
@@ -15,7 +15,7 @@ export type InfrastructureInput = z.infer<typeof InfrastructureInput>;
 export const INFRASTRUCTURE_TOOL = {
   name: "catalog_infrastructure",
   description:
-    "Homelab infra-level data: hosts (resolution, adventure) with their agent version/IP/container count, " +
+    "Homelab infra-level data: hosts with their agent version/IP/container count, " +
     "plus optionally the full cloudflared tunnel route table and CF Access app policies. Host descriptions " +
     "are included by default (from catalog's hosts.yml). Set include_routes / include_access to true only " +
     "if you actually need them — they're verbose.",

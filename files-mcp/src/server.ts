@@ -19,7 +19,7 @@ const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN;
 if (!MCP_BEARER_TOKEN) { console.error("FATAL: MCP_BEARER_TOKEN env var required"); process.exit(1); }
 
 // FILES_ROOTS: JSON object, name -> absolute path. e.g.
-//   {"screenshots":"/screenshots","adventure-backups":"/backups-adv"}
+//   {"screenshots":"/screenshots","backups":"/backups"}
 // Each value must already be mounted into this container — this MCP never
 // reaches outside its own filesystem.
 const ROOTS: Record<string, string> = (() => {
