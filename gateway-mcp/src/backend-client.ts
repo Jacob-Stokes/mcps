@@ -12,6 +12,23 @@ export interface BackendTool {
   name: string;           // tool name as advertised by backend (e.g. "obsidian_files")
   description: string;
   inputSchema: any;       // raw JSON schema (already Anthropic-compatible — backends produce it that way)
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
+}
+
+export function mapBackendTool(backend: string, tool: any): BackendTool {
+  return {
+    backend,
+    name: tool.name,
+    description: tool.description ?? "",
+    inputSchema: tool.inputSchema,
+    ...(tool.annotations ? { annotations: tool.annotations } : {}),
+  };
 }
 
 export class Backend {
@@ -72,12 +89,7 @@ export class Backend {
     try {
       await this.ensureConnected();
       const res = await this.client.listTools();
-      this.tools = res.tools.map((t) => ({
-        backend: this.cfg.name,
-        name: t.name,
-        description: t.description ?? "",
-        inputSchema: t.inputSchema,
-      }));
+      this.tools = res.tools.map((tool) => mapBackendTool(this.cfg.name, tool));
       console.log(`gateway: ${this.cfg.name} → ${this.tools.length} tools`);
     } catch (e: any) {
       this.error = e.message ?? String(e);
