@@ -6,6 +6,7 @@ import {
   joinFrontmatter,
   outline,
   patchTarget,
+  replaceInContent,
   resolveLinkTarget,
   splitFrontmatter,
 } from "./markdown.js";
@@ -47,6 +48,17 @@ test("wiki and relative markdown links resolve to vault paths", () => {
   const links = extractLinks("[[People/Ada|Ada]] and [plan](../Plans/Study.md)");
   assert.equal(links.length, 2);
   assert.equal(resolveLinkTarget("Notes/Index.md", links[0].target, ["People/Ada.md", "Plans/Study.md"]), "People/Ada.md");
+});
+
+test("replacement uses native capture, named-group and dollar semantics", () => {
+  const numbered = replaceInContent("Ada Lovelace", "(Ada) (Lovelace)", "$2, $1", {
+    regex: true, caseSensitive: true, replaceAll: true, maxReplacements: 10,
+  });
+  assert.deepEqual(numbered, { content: "Lovelace, Ada", replacements: 1 });
+  const named = replaceInContent("tag: old", "tag: (?<tag>old)", "tag: $<tag>-new $$", {
+    regex: true, caseSensitive: true, replaceAll: false, maxReplacements: 10,
+  });
+  assert.deepEqual(named, { content: "tag: old-new $", replacements: 1 });
 });
 
 test("vault paths reject traversal and private Obsidian configuration", () => {

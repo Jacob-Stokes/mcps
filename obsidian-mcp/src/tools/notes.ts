@@ -5,6 +5,7 @@ import {
   findBlockLine,
   outline,
   patchTarget,
+  replaceInContent,
   splitFrontmatter,
 } from "../lib/markdown.js";
 import {
@@ -200,29 +201,19 @@ export const REPLACE_NOTE_TOOL = {
 export async function handleReplaceNote(ctx: ToolContext, input: ReplaceNoteInput) {
   const existing = await readNote(ctx, input.path);
   assertExpectedHash(existing, input.expected_hash);
-  const flags = `${input.replace_all ? "g" : ""}${input.case_sensitive ? "" : "i"}`;
-  let expression: RegExp;
-  try {
-    expression = new RegExp(input.regex ? input.find : escapeRegex(input.find), flags);
-  } catch (error: any) {
-    throw new Error(`invalid regular expression: ${error.message}`);
-  }
-  let replacements = 0;
-  const updated = existing.content.replace(expression, (...args) => {
-    replacements++;
-    return expandReplacement(input.replace, args);
+  const replaced = replaceInContent(existing.content, input.find, input.replace, {
+    regex: input.regex,
+    caseSensitive: input.case_sensitive,
+    replaceAll: input.replace_all,
+    maxReplacements: input.max_replacements,
   });
-  if (replacements === 0) throw new Error("find pattern did not match the note");
-  if (replacements > input.max_replacements) {
-    throw new Error(`refusing ${replacements} replacements; max_replacements is ${input.max_replacements}`);
-  }
-  const result = await writeNoteContent(ctx, input.path, updated, {
+  const result = await writeNoteContent(ctx, input.path, replaced.content, {
     overwrite: true,
     expectedHash: input.expected_hash,
     dryRun: input.dry_run,
     existing,
   });
-  return { replacements, ...result };
+  return { replacements: replaced.replacements, ...result };
 }
 
 export const MoveNoteInput = z.object({
@@ -278,18 +269,4 @@ export async function handleDeleteNote(ctx: ToolContext, input: DeleteNoteInput)
   if (input.dry_run) return { dryRun: true, path: notePath, mode: "trash", destination: trashPath, hash: existing.hash };
   await ctx.client.post("/api/move", { from: notePath, to: trashPath, overwrite: false });
   return { deleted: notePath, mode: "trash", destination: trashPath, hash: existing.hash };
-}
-
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// String.replace callback includes captures followed by offset, whole string and optional groups.
-function expandReplacement(template: string, callbackArgs: any[]): string {
-  const match = String(callbackArgs[0]);
-  const captures = callbackArgs.slice(1, -2);
-  return template
-    .replace(/\$&/g, match)
-    .replace(/\$(\d{1,2})/g, (_, index) => captures[Number(index) - 1] ?? "")
-    .replace(/\$\$/g, "$");
 }

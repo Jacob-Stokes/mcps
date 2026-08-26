@@ -164,6 +164,30 @@ export function extractLinks(content: string): NoteLink[] {
   return links;
 }
 
+export function replaceInContent(
+  content: string,
+  find: string,
+  replacement: string,
+  options: { regex: boolean; caseSensitive: boolean; replaceAll: boolean; maxReplacements: number },
+): { content: string; replacements: number } {
+  const flags = `${options.replaceAll ? "g" : ""}${options.caseSensitive ? "" : "i"}`;
+  let expression: RegExp;
+  try {
+    expression = new RegExp(options.regex ? find : escapeRegex(find), flags);
+  } catch (error: any) {
+    throw new Error(`invalid regular expression: ${error.message}`);
+  }
+  const countingFlags = expression.flags.includes("g") ? expression.flags : `${expression.flags}g`;
+  const countingExpression = new RegExp(expression.source, countingFlags);
+  const replacements = [...content.matchAll(countingExpression)].length;
+  const effectiveReplacements = options.replaceAll ? replacements : Math.min(replacements, 1);
+  if (effectiveReplacements === 0) throw new Error("find pattern did not match the note");
+  if (effectiveReplacements > options.maxReplacements) {
+    throw new Error(`refusing ${effectiveReplacements} replacements; max_replacements is ${options.maxReplacements}`);
+  }
+  return { content: content.replace(expression, replacement), replacements: effectiveReplacements };
+}
+
 export function resolveLinkTarget(sourcePath: string, target: string, notePaths: string[]): string | null {
   const clean = target.replace(/\.md$/i, "");
   const exact = `${clean}.md`;
