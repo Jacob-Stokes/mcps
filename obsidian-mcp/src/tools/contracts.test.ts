@@ -5,7 +5,7 @@ import { GET_NOTE_TOOL, GetNoteInput, LIST_NOTES_TOOL, ListNotesInput, WRITE_NOT
   APPEND_NOTE_TOOL, AppendNoteInput, PATCH_NOTE_TOOL, PatchNoteInput, REPLACE_NOTE_TOOL, ReplaceNoteInput,
   MOVE_NOTE_TOOL, MoveNoteInput, DELETE_NOTE_TOOL, DeleteNoteInput } from "./notes.js";
 import { SEARCH_NOTES_TOOL, SearchNotesInput } from "./search-notes.js";
-import { FRONTMATTER_TOOL, FrontmatterInput, TAGS_TOOL, TagsInput } from "./metadata.js";
+import { FRONTMATTER_TOOL, FrontmatterInput, TAGS_TOOL, TagsInput, resolveTagsDryRun } from "./metadata.js";
 import { LINKS_TOOL, LinksInput } from "./links.js";
 import { BULK_TOOL, BulkInput } from "./bulk.js";
 import { DAILY_TOOL, DailyInput } from "./daily.js";
@@ -36,8 +36,21 @@ test("focused tool names are unique and every contract emits an object schema", 
 test("destructive contracts keep safe defaults", () => {
   assert.equal(DeleteNoteInput.parse({ path: "A.md" }).mode, "trash");
   assert.equal((AttachmentsInput.parse({ action: "delete", path: "image.png" }) as any).mode, "trash");
-  assert.equal((TagsInput.parse({ action: "rename", old_tag: "a", new_tag: "b" }) as any).dry_run, true);
   assert.equal(WriteNoteInput.parse({ path: "A.md", content: "x" }).mode, "create");
+});
+
+test("tag mutation dry-run behavior is contextual and not misrepresented in JSON schema", () => {
+  assert.equal(resolveTagsDryRun({ action: "add", path: "A.md" }), false);
+  assert.equal(resolveTagsDryRun({ action: "remove", path: "A.md" }), false);
+  assert.equal(resolveTagsDryRun({ action: "rename", path: "A.md" }), false);
+  assert.equal(resolveTagsDryRun({ action: "rename", path: "Folder" }), true);
+  assert.equal(resolveTagsDryRun({ action: "rename" }), true);
+  assert.equal(resolveTagsDryRun({ action: "rename", dry_run: false }), false);
+  assert.equal(resolveTagsDryRun({ action: "rename", path: "A.md", dry_run: true }), true);
+
+  const tags = zodToJsonSchema(TagsInput);
+  assert.equal("default" in tags.properties.dry_run, false);
+  assert.match(TAGS_TOOL.description, /note-scoped rename execute/);
 });
 
 test("frontmatter records and numeric bounds survive schema conversion", () => {

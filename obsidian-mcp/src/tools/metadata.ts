@@ -72,6 +72,10 @@ export async function handleFrontmatter(ctx: ToolContext, input: FrontmatterInpu
   return { frontmatter: next, ...result };
 }
 
+const TagDryRun = z.boolean().optional().describe(
+  "Omit for contextual safety: add/remove and note-scoped rename execute; folder- or vault-wide rename previews only.",
+);
+
 export const TagsInput = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("list"),
@@ -83,7 +87,7 @@ export const TagsInput = z.discriminatedUnion("action", [
     path: NotePath,
     tags: z.array(z.string().min(1)).min(1).max(100),
     expected_hash: ExpectedHash,
-    dry_run: z.boolean().default(false),
+    dry_run: TagDryRun,
   }),
   z.object({
     action: z.literal("remove"),
@@ -91,7 +95,7 @@ export const TagsInput = z.discriminatedUnion("action", [
     tags: z.array(z.string().min(1)).min(1).max(100),
     locations: z.enum(["frontmatter", "inline", "both"]).default("frontmatter"),
     expected_hash: ExpectedHash,
-    dry_run: z.boolean().default(false),
+    dry_run: TagDryRun,
   }),
   z.object({
     action: z.literal("rename"),
@@ -100,18 +104,23 @@ export const TagsInput = z.discriminatedUnion("action", [
     path: z.string().optional().describe("Limit to one note or folder subtree."),
     locations: z.enum(["frontmatter", "inline", "both"]).default("both"),
     max_notes: z.number().int().positive().max(5000).default(1000),
-    dry_run: z.boolean().default(true).describe("Defaults true because rename can change many notes."),
+    dry_run: TagDryRun,
   }),
 ]);
 export type TagsInput = z.infer<typeof TagsInput>;
+export function resolveTagsDryRun(input: { action: string; path?: string; dry_run?: boolean }): boolean {
+  const broadRename = input.action === "rename" && (!input.path || !input.path.toLocaleLowerCase().endsWith(".md"));
+  return input.dry_run ?? broadRename;
+}
 export const TAGS_TOOL = {
   name: "obsidian_manage_tags",
-  description: "List vault tags with counts, add/remove frontmatter tags on one note, or rename a tag across a note/folder/vault. Inline changes avoid code spans and fenced code. Vault-wide rename defaults to dry_run.",
+  description: "List vault tags with counts, add/remove frontmatter tags on one note, or rename a tag across a note/folder/vault. Inline changes avoid code spans and fenced code. Add/remove and note-scoped rename execute by default; folder- or vault-wide rename defaults to dry_run.",
   inputSchema: TagsInput,
 };
 
 export async function handleTags(ctx: ToolContext, input: TagsInput) {
   if (input.action === "add" || input.action === "remove") {
+    const dryRun = resolveTagsDryRun(input);
     const existing = await readNote(ctx, input.path);
     assertExpectedHash(existing, input.expected_hash);
     const normalized = input.tags.map(normalizeTag);
@@ -134,7 +143,7 @@ export async function handleTags(ctx: ToolContext, input: TagsInput) {
     const result = await writeNoteContent(ctx, input.path, updated, {
       overwrite: true,
       expectedHash: input.expected_hash,
-      dryRun: input.dry_run,
+      dryRun,
       existing,
     });
     return { tags: extractTags(updated), ...result };
@@ -170,6 +179,7 @@ export async function handleTags(ctx: ToolContext, input: TagsInput) {
 
   const oldTag = normalizeTag(input.old_tag);
   const newTag = normalizeTag(input.new_tag);
+  const dryRun = resolveTagsDryRun(input);
   const candidates = readable.filter((item: any) =>
     extractTags(item.content).all.some((tag) => tag.toLocaleLowerCase() === oldTag.toLocaleLowerCase()),
   );
@@ -191,14 +201,14 @@ export async function handleTags(ctx: ToolContext, input: TagsInput) {
     const updated = joinFrontmatter(data, body);
     return writeNoteContent(ctx, item.path, updated, {
       overwrite: true,
-      dryRun: input.dry_run,
+      dryRun,
       existing,
     });
   });
   return {
     oldTag,
     newTag,
-    dryRun: input.dry_run,
+    dryRun,
     scanned: readable.length,
     matched: candidates.length,
     scanTruncated: listed.truncated,
