@@ -37,6 +37,14 @@ export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema: z.ZodType;
+  /** Standard MCP hints surfaced to clients. These are descriptive, not authorization controls. */
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
 }
 
 export interface ToolRegistration {
@@ -189,6 +197,7 @@ export async function startMcp(opts: StartMcpOptions): Promise<void> {
         name: t.def.name,
         description: t.def.description,
         inputSchema: zodToJsonSchema(t.def.inputSchema),
+        ...(t.def.annotations ? { annotations: t.def.annotations } : {}),
       })),
     }));
 

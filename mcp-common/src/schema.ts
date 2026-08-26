@@ -54,17 +54,48 @@ export function zodToJsonSchema(schema: z.ZodType): any {
   }
 
   if (def.typeName === "ZodUnion") return zodToJsonSchema(def.options[0]);
-  if (def.typeName === "ZodArray") return { type: "array", items: zodToJsonSchema(def.type) };
-  if (def.typeName === "ZodEnum") return { type: "string", enum: def.values };
+  if (def.typeName === "ZodArray") {
+    const out: any = { type: "array", items: zodToJsonSchema(def.type) };
+    if (def.minLength?.value !== undefined) out.minItems = def.minLength.value;
+    if (def.maxLength?.value !== undefined) out.maxItems = def.maxLength.value;
+    if (def.description) out.description = def.description;
+    return out;
+  }
+  if (def.typeName === "ZodRecord") {
+    const out: any = { type: "object", additionalProperties: zodToJsonSchema(def.valueType) };
+    if (def.description) out.description = def.description;
+    return out;
+  }
+  if (def.typeName === "ZodEnum") {
+    const out: any = { type: "string", enum: def.values };
+    if (def.description) out.description = def.description;
+    return out;
+  }
   if (def.typeName === "ZodLiteral") return { const: def.value };
 
   if (def.typeName === "ZodString") {
     const s: any = { type: "string" };
+    for (const check of def.checks ?? []) {
+      if (check.kind === "min") s.minLength = check.value;
+      if (check.kind === "max") s.maxLength = check.value;
+      if (check.kind === "regex") s.pattern = check.regex.source;
+    }
     if (def.description) s.description = def.description;
     return s;
   }
-  if (def.typeName === "ZodNumber") return { type: "number" };
-  if (def.typeName === "ZodBoolean") return { type: "boolean" };
+  if (def.typeName === "ZodNumber") {
+    const out: any = { type: "number" };
+    for (const check of def.checks ?? []) {
+      if (check.kind === "int") out.type = "integer";
+      if (check.kind === "min") out.minimum = check.value;
+      if (check.kind === "max") out.maximum = check.value;
+    }
+    if (def.description) out.description = def.description;
+    return out;
+  }
+  if (def.typeName === "ZodBoolean") {
+    return { type: "boolean", ...(def.description ? { description: def.description } : {}) };
+  }
   if (def.typeName === "ZodOptional") return zodToJsonSchema(def.innerType);
   if (def.typeName === "ZodNullable") return { ...zodToJsonSchema(def.innerType), nullable: true };
   if (def.typeName === "ZodDefault") {
@@ -72,6 +103,8 @@ export function zodToJsonSchema(schema: z.ZodType): any {
     inner.default = def.defaultValue();
     return inner;
   }
+
+  if (def.typeName === "ZodUnknown" || def.typeName === "ZodAny") return {};
 
   return {};
 }

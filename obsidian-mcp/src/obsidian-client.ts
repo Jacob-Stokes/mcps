@@ -29,6 +29,14 @@ export class ObsidianClient {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      if (method === "HEAD" && res.ok) {
+        return {
+          exists: true,
+          size: numberHeader(res.headers.get("x-size")),
+          modified: res.headers.get("x-modified") ?? undefined,
+          type: res.headers.get("x-type") ?? undefined,
+        };
+      }
       if (res.status === 204) return null;
       const text = await res.text();
       if (!res.ok) {
@@ -52,6 +60,13 @@ export class ObsidianClient {
   post(path: string, body?: unknown): Promise<any> { return this.call("POST", path, body); }
   put(path: string, body?: unknown): Promise<any> { return this.call("PUT", path, body); }
   delete(path: string): Promise<any> { return this.call("DELETE", path); }
+  head(path: string): Promise<any> { return this.call("HEAD", path); }
+}
+
+function numberHeader(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 // URL-encode a vault path while preserving forward slashes (obsidian-landing's

@@ -14,7 +14,7 @@ export type SearchInput = z.infer<typeof SearchInput>;
 export const SEARCH_TOOL = {
   name: "obsidian_search",
   description:
-    "Full-text search across vault content. Returns matching files with the lines that matched. " +
+    "DEPRECATED compatibility tool; prefer obsidian_search_notes. Full-text search across vault content. Returns matching files with the lines that matched. " +
     "Narrow with `path` when you know which subtree to look in (faster, less noise). " +
     "Use regex=true for pattern matching (carefully — the whole q becomes the pattern).",
   inputSchema: SearchInput,
